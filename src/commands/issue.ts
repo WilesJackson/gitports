@@ -1,6 +1,11 @@
-import {Command, flags} from '@oclif/command'
+import {flags} from '@oclif/command'
+import Command from '../base';
 import fetch from 'node-fetch';
 import { Buffer } from 'buffer';
+import cli from 'cli-ux';
+import * as pug from 'pug';
+import * as path from 'path';
+import * as fs from 'fs-extra';
 
 const DEFAULT_PER_PAGE: number = 100;
 const DEFAULT_REPO_OWNER: string = 'wilesjackson';
@@ -20,9 +25,14 @@ export default class Issue extends Command {
 
   async run() {
     const {args, flags} = this.parse(Issue)
+    const { gitToken } = this.conf;
     const pageCount: number = (flags.pages && flags.pages > 1) ? flags.pages : 1;
     const repositoryName: string = args.repo;
-    const userToken: string = (flags.token && flags.token.length > 1) ? flags.token : '';
+    const userToken: string = gitToken 
+      ? gitToken
+      : (flags.token && flags.token.length > 1)
+        ? flags.token
+        : '';
     if (!repositoryName || repositoryName.length < 1) {
       this.error('A Repository Name Must be Provided. Exiting.', { exit: -1 });
     } else {
@@ -31,13 +41,35 @@ export default class Issue extends Command {
         let filterObj: IFilter = {
           name: 'labels',
           value: flags.label,
-          queryVal: 'filter='
+          queryVal: 'labels='
         };
         filters.push(filterObj);
       }
-      await this.fetchIssues(repositoryName, DEFAULT_REPO_OWNER, filters, userToken, pageCount);
+      cli.action.start('Fetching Issues: ' + repositoryName);
+      const issues = await this.fetchIssues(repositoryName, DEFAULT_REPO_OWNER, filters, userToken, pageCount);
+      if (issues.length > 0) {
+        cli.action.stop();
+        cli.action.start('Compiling');
+        const issueItems: any[] = this.generateReportItems(issues);
+        cli.action.stop();
+        const reportCtx: any = {
+          repo: repositoryName,
+          allIssues: issueItems,
+        };
+        const templatePath = path.join(this.config.configDir, 'report.jade');
+        const template = pug.compileFile(templatePath);
+        const render = template(reportCtx);
+        const today: Date = new Date();
+        const reportName: string = `gitports-${repositoryName}-${today.getTime()}.html`;
+        cli.action.start('Exporting report');
+        try {
+          await fs.outputFile(path.join(this.outputDir, reportName), render);
+        } catch (err) {
+          this.error('Error creating report file.', { exit: -1 });
+        }
+        cli.action.stop('Exported to ' + path.join(this.outputDir, reportName));
+      }
     }
-    
   }
 
   async fetchIssues(repo: string, owner: string, filters: IFilter[], token: string = '', pages: number = 1): Promise<any[]> {
@@ -55,13 +87,11 @@ export default class Issue extends Command {
             let query: string = filterQueries[i];
             filterQuery += query + '&';
           }
-          console.log(filterQuery);
         }
         if (filterQuery.length > 0) {
           fetchUrl += filterQuery;
         }
         fetchUrl += pageQuery;
-        console.log(fetchUrl);
         const authHeaders: string = this.generateAuthHeaders(token);
         let getIssues = await fetch(fetchUrl, {
           method: 'GET',
@@ -70,7 +100,6 @@ export default class Issue extends Command {
           }
         });
         let parsedIssues: any[] = await getIssues.json();
-        console.log(typeof parsedIssues);
         if (parsedIssues.length > 0) {
           issues.push(...parsedIssues);
         } else if (parsedIssues.length < 1 && currentPage > 1) {
@@ -91,7 +120,6 @@ export default class Issue extends Command {
         pageUrl += filterQuery;
       }
       pageUrl += pageQuery;
-      console.log(pageUrl);
       const authHeaders: string = this.generateAuthHeaders(token);
       let singelPage = await fetch(pageUrl, {
         method: 'GET',
@@ -121,6 +149,35 @@ export default class Issue extends Command {
 
   generateAuthHeaders(token: string): string {
     return `Basic ${Buffer.from(token + ':x-oauth-basic').toString('base64')}`;
+  }
+
+  generateReportItems(issues: any[]): any[] {
+    const issueCount: number = issues.length;
+    const reportIssues: any[] = [];
+    for (let i = 0; i < issueCount; i++) {
+      const issue = issues[i];
+      const { html_url, number, title, user, labels, state, assignees, body } = issue;
+      const reportIssue: any = {
+        title,
+        number,
+        status: state,
+        labels: [],
+        assigned: [],
+        created: '',
+        url: html_url
+      };
+      if (labels.length > 0) {
+        const labelNames: string[] = labels.map((label: any) => label.name);
+        if (labelNames.length > 0) reportIssue['labels'] = labelNames;
+      }
+      if (user && user.login && user.login.length > 0) reportIssue['creator'] = user.login;
+      if (assignees.length > 0) {
+        const assignedTo: string[] = assignees.map((assign: any) => assign.login);
+        if (assignedTo.length > 0) reportIssue['assigned'] = assignedTo;
+      }
+      reportIssues.push(reportIssue);
+    }
+    return reportIssues;
   }
 }
 
