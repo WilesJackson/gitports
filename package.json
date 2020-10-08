@@ -38,8 +38,10 @@
   "files": [
     "/bin",
     "/lib",
+    "/templates",
     "/npm-shrinkwrap.json",
-    "/oclif.manifest.json"
+    "/oclif.manifest.json",
+    ""
   ],
   "homepage": "https://github.com/wilesjackson/gitports",
   "keywords": [
@@ -52,7 +54,8 @@
     "bin": "gitports",
     "plugins": [
       "@oclif/plugin-help"
-    ]
+    ],
+    "templateDir": "./template"
   },
   "repository": "wilesjackson/gitports",
   "scripts": {

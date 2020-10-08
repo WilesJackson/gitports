@@ -25,11 +25,15 @@ export default class Issue extends Command {
 
   async run() {
     const {args, flags} = this.parse(Issue)
-    const { gitToken } = this.conf;
+    let gToken: string = '';
+    if (this.configEntries > 0) {
+      const { gitToken } = this.conf;
+      gToken = gitToken;
+    }
     const pageCount: number = (flags.pages && flags.pages > 1) ? flags.pages : 1;
     const repositoryName: string = args.repo;
-    const userToken: string = gitToken 
-      ? gitToken
+    const userToken: string = (gToken && gToken.length > 0) 
+      ? gToken
       : (flags.token && flags.token.length > 1)
         ? flags.token
         : '';
@@ -56,7 +60,7 @@ export default class Issue extends Command {
           repo: repositoryName,
           allIssues: issueItems,
         };
-        const templatePath = path.join(this.config.configDir, 'report.jade');
+        const templatePath = path.join(this.templateDir, 'report.jade');
         const template = pug.compileFile(templatePath);
         const render = template(reportCtx);
         const today: Date = new Date();
