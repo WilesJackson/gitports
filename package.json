@@ -1,7 +1,7 @@
 {
   "name": "gitports",
   "description": "A tool for Building Reports from Github issues",
-  "version": "0.0.1",
+  "version": "0.1.1",
   "author": "JoeyHops @joeyhops",
   "bin": {
     "gitports": "./bin/run"
