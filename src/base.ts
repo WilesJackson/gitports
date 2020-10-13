@@ -24,10 +24,28 @@ export default abstract class extends Command {
         if (entries > 0) {
           this.conf = configObj;
           this.configEntries = entries;
+        } else {
+          await this.genDefaultConfig(configFile);
         }
+      } else {
+        await this.genDefaultConfig(configFile);
       }
     } catch (err) {
       this.error('Could not retrieve config file.', { exit: -1 });
+    }
+  }
+
+  async genDefaultConfig(configFile: string) {
+    const defaultConf: any = {
+      setupRun: false
+    };
+    try {
+      await fs.writeJSON(configFile, defaultConf);
+      this.conf = defaultConf;
+      this.configEntries = 1;
+      console.log('Created Default Config');
+    } catch (err) {
+      this.error('Error Creating Default Config', { exit: -1 });
     }
   }
 }

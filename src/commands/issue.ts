@@ -8,7 +8,6 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 
 const DEFAULT_PER_PAGE: number = 100;
-const DEFAULT_REPO_OWNER: string = 'wilesjackson';
 const BASE_URI: string = 'https://api.github.com/repos';
 
 export default class Issue extends Command {
@@ -26,9 +25,15 @@ export default class Issue extends Command {
   async run() {
     const {args, flags} = this.parse(Issue)
     let gToken: string = '';
+    let confRepoOwner: string = '';
     if (this.configEntries > 0) {
-      const { gitToken } = this.conf;
-      gToken = gitToken;
+      const { setupRun, repoOwner, gitToken } = this.conf;
+      if (setupRun) {
+        gToken = gitToken;
+        confRepoOwner = repoOwner;
+      } else {
+        this.error('Please run GitPorts Setup before generating a report');
+      }
     }
     const pageCount: number = (flags.pages && flags.pages > 1) ? flags.pages : 1;
     const repositoryName: string = args.repo;
@@ -50,7 +55,7 @@ export default class Issue extends Command {
         filters.push(filterObj);
       }
       cli.action.start('Fetching Issues: ' + repositoryName);
-      const issues = await this.fetchIssues(repositoryName, DEFAULT_REPO_OWNER, filters, userToken, pageCount);
+      const issues = await this.fetchIssues(repositoryName, confRepoOwner, filters, userToken, pageCount);
       if (issues.length > 0) {
         cli.action.stop();
         cli.action.start('Compiling');
